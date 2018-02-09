@@ -34,11 +34,14 @@ def fine_license_ratio(license_data, fine_data, column_name1=None, column_name2=
 		license_data = license_data[license_data[column_name1]==year]
 		fine_data = fine_data[fine_data[column_name2]==year]
 	try:
-		fine_percentage = len(fine_data)/len(license_data) * 100
+		license_count = len(license_data)
+		fine_count = len(fine_data)
+		fine_percentage = fine_count/license_count * 100
 		license_percentage = 100 - fine_percentage
-		return license_percentage, fine_percentage
+		return license_percentage, fine_percentage, license_count, fine_count
 	except ZeroDivisionError:
 		print("Hmmm...It looks like there is are no licenses yet for the year " + str(year))
+
 
 def profession_fine_license_ratio(license_data, fine_data, profession, profession_column_license, 
 	profession_column_fine, column_name1=None, column_name2=None,year=None):
@@ -78,12 +81,19 @@ def profession_fine_license_ratio(license_data, fine_data, profession, professio
 	grouped_fine_data = fine_data.groupby(profession_column_fine)
 	license_profession_df = grouped_license_data.get_group(profession)
 	fine_profession_df = grouped_fine_data.get_group(profession)
-	try: 
-		license_ratio, fine_ratio = fine_license_ratio(license_data=license_profession_df, fine_data=fine_profession_df,
+
+	if year in license_profession_df[column_name1].unique() and year not in fine_profession_df[column_name2].unique():
+		return 100, 0
+	else: 
+		license_ratio, fine_ratio, license_count, fine_count = fine_license_ratio(license_data=license_profession_df, fine_data=fine_profession_df,
 			column_name1=column_name1, column_name2=column_name2,year=year)
-		return license_ratio, fine_ratio
-	except Exception as e:
-		print(e)
+		return license_ratio, fine_ratio, license_count, fine_count
+
+
+
+
+
+
 
 
 # license_data = pd.read_pickle('licenses')
@@ -95,16 +105,6 @@ def profession_fine_license_ratio(license_data, fine_data, profession, professio
 # column_name2='disciplinary_year', year=2017)
 
 # print(x,y)
-
-
-
-
-
-
-
-
-
-
 
 
 

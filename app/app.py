@@ -22,19 +22,34 @@ license_data = pd.read_pickle('licenses')
 fine_data = pd.read_pickle('fines')
 
 
-# Generate profession list for app dropdown
+# Generate sorted profession list for app dropdown
 A = license_data['profession_id'].unique()
 B = fine_data['profession_id'].unique()
-professions = list(set(A).intersection(set(B)))
+professions = sorted(list(set(A).intersection(set(B))))
 professions_options = []
 for profession in professions:
    professions_options.append({'label': profession, 'value': profession})
 
-# Generate year list
-date_options_list = np.arange(min(license_data['licence_year']), dt.now().year+3)
-date_options = []
-for date in date_options_list:
-   date_options.append({'label': date, 'value': date})
+# Generate sorted year list for licenses
+license_date_options_list = sorted([year for year in license_data['licence_year'].unique() if not np.isnan(year)])
+date_options_licenses = []
+for date in license_date_options_list:
+   date_options_licenses.append({'label': date, 'value': date})
+
+# Generate sorted year list for fines
+fines_date_options_list = sorted([year for year in fine_data['disciplinary_year'].unique() if not np.isnan(year)])
+date_options_fines = []
+for date in fines_date_options_list:
+   date_options_fines.append({'label': date, 'value': date})
+
+# For Pie chart of Licenses to Fines ratio, we should use and intersection of the dates
+# This Prevents errors when querying the data
+C = license_date_options_list
+D = fines_date_options_list
+dates_intersect = sorted(list(set(C).intersection(set(D))))
+dates_intersect_list = []
+for date in dates_intersect:
+   dates_intersect_list.append({'label': date, 'value': date})
 
 # Generate random number to slice professions_option 
 # to use for default profession
@@ -42,6 +57,7 @@ num = np.random.randint(0,len(professions_options))
 
     
 app = dash.Dash()
+app.css.append_css({'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'})
 
 app.layout = html.Div([
    html.Div([
@@ -56,8 +72,8 @@ app.layout = html.Div([
                 html.Label('Select A Year'),
                 dcc.Dropdown(
                    id='date-1',
-                   options= date_options,
-                   value= date_options[-4]['value'],
+                   options= date_options_fines,
+                   value= date_options_fines[-4]['value'],
                ),
             ]), 
 
@@ -80,20 +96,11 @@ app.layout = html.Div([
                    value=professions_options[num]['value'],
                    placeholder='Nursing...'
                 )
-            ], style={'width': '48%', 'display': 'inline-block'}),
-            html.Div([
-                html.Label('Select A Year'),
-                dcc.Dropdown(
-                   id='date-2',
-                   options= date_options,
-                   value= date_options[-4]['value'],
-               ),
-            ], style={'width': '48%', 'float': 'right', 'display': 'inline-block'}), 
+            ],),
 
             html.Div([
                 dcc.Graph(id='graph-2')
-
-              ]),
+            ]),
 
        ], style={'width': '48%', 'float': 'right', 'display': 'inline-block'}
        ),
@@ -107,7 +114,7 @@ app.layout = html.Div([
    [Input(component_id='date-1', component_property='value')]
 )
 def update_output_div_1(yr):
-    filtered_df = license_data[license_data['licence_year'] == yr]
+    filtered_df = fine_data[fine_data['disciplinary_year'] == yr]
     grouped = filtered_df.groupby('profession_id')
     profession_dict = {}
     for profession in filtered_df['profession_id'].unique():
@@ -125,7 +132,7 @@ def update_output_div_1(yr):
           x = y,
           y = x)
     ]
-    
+    print (len(x),len(y))
     return {
         'data': data,
         'layout': go.Layout(
@@ -135,7 +142,7 @@ def update_output_div_1(yr):
             yaxis=dict(
                     title='Count',
                     showticklabels=True),
-            title='Number of Fines in A Year by Profession',
+            title='Number of Fines in ' + str(yr) + ' by Profession',
             hovermode='closest'
         )
     }
@@ -144,30 +151,27 @@ def update_output_div_1(yr):
 @app.callback(
    Output(component_id='graph-2', component_property='figure'),
    [Input(component_id='profession-2', component_property='value'),
-    Input(component_id='date-2', component_property='value')]
+    Input(component_id='date-1', component_property='value')]
 )
 def update_output_div_2(profession,yr):
-
-  try:
-    x, y = profession_fine_license_ratio(license_data=license_data, fine_data=fine_data, 
-      profession=profession, profession_column_license='profession_id',
-      profession_column_fine='profession_id', column_name1='licence_year',
-      column_name2='disciplinary_year', year=yr)
-  except TypeError:
-    x,y = 100,0
+  x, y, count1, count2 = profession_fine_license_ratio(license_data=license_data, fine_data=fine_data, 
+    profession=profession, profession_column_license='profession_id',
+    profession_column_fine='profession_id', column_name1='licence_year',
+    column_name2='disciplinary_year', year=yr)
 
   data = [
       go.Pie(
         values = [x,y],
         labels = ['No Fines', 'Fines'],
-        hole = 0.4)
+        hole = 0.8)
   ]
   
   return {
       'data': data,
       'layout': go.Layout(
-          annotations = [{'text':profession[0:10], 'showarrow':False}],
-          title='Licenses issued to Fines Recieved',
+          # annotations = [{'text':profession, 'showarrow':False}],
+          annotations = [{'text': 'Licenses Issued: ' + str(count1) + "<br>" + 'Fines Issued: ' + str(count2), 'showarrow':False}],
+          title='Licenses issued to Fines Recieved in '+ str(yr),
           hovermode='closest'
       )
   }
