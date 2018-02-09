@@ -83,7 +83,13 @@ def profession_fine_license_ratio(license_data, fine_data, profession, professio
 	fine_profession_df = grouped_fine_data.get_group(profession)
 
 	if year in license_profession_df[column_name1].unique() and year not in fine_profession_df[column_name2].unique():
-		return 100, 0
+		license_count = len(license_profession_df[license_profession_df[column_name1]==year])
+		fine_count = len(fine_profession_df[fine_profession_df[column_name2]==year])
+		return 100, 0, license_count, fine_count
+	elif year not in license_profession_df[column_name1].unique() and year not in fine_profession_df[column_name2].unique():
+		license_count = len(license_profession_df[license_profession_df[column_name1]==year])
+		fine_count = len(fine_profession_df[fine_profession_df[column_name2]==year])
+		return 0, 0, license_count, fine_count
 	else: 
 		license_ratio, fine_ratio, license_count, fine_count = fine_license_ratio(license_data=license_profession_df, fine_data=fine_profession_df,
 			column_name1=column_name1, column_name2=column_name2,year=year)

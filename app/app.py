@@ -132,7 +132,7 @@ def update_output_div_1(yr):
           x = y,
           y = x)
     ]
-    print (len(x),len(y))
+
     return {
         'data': data,
         'layout': go.Layout(
@@ -163,7 +163,7 @@ def update_output_div_2(profession,yr):
       go.Pie(
         values = [x,y],
         labels = ['No Fines', 'Fines'],
-        hole = 0.8)
+        hole = 0.6)
   ]
   
   return {
@@ -177,4 +177,4 @@ def update_output_div_2(profession,yr):
   }
 
 if __name__ == '__main__':
-   app.run_server(debug=True)
+  app.run_server(debug=True)
