@@ -75,11 +75,16 @@ app.layout = html.Div([
                    options= date_options_fines,
                    value= date_options_fines[-4]['value'],
                ),
-            ]), 
+            ], style={
+                    'borderBottom': 'thin lightgrey solid',
+                    'backgroundColor': 'rgb(250, 250, 250)',
+                    'padding': '10px 5px'
+            }), 
 
             html.Div([
-                dcc.Graph(id='graph-1')
-
+                dcc.Graph(id='graph-1',
+                          clickData = {'points': [{'x': professions_options[num]['value']}]}
+                ),
               ]),
 
        ], style={'width': '48%', 'display': 'inline-block'}
@@ -88,25 +93,35 @@ app.layout = html.Div([
    #right div
 
        html.Div([
-           html.Div([
-               html.Label('Select A Profession Type'),
-               dcc.Dropdown(
-                   id='profession-2',
-                   options= professions_options,
-                   value=professions_options[num]['value'],
-                   placeholder='Nursing...'
-                )
-            ],),
+       #     html.Div([
+       #         html.Label('Select A Profession Type'),
+       #         dcc.Dropdown(
+       #             id='profession-2',
+       #             options= professions_options,
+       #             value=professions_options[num]['value'],
+       #             # placeholder='Nursing...'
+       #          )
+       #      ], style={
+       #              'borderBottom': 'thin lightgrey solid',
+       #              'backgroundColor': 'rgb(250, 250, 250)',
+       #              'padding': '10px 5px'
+       #      }),
 
             html.Div([
-                dcc.Graph(id='graph-2')
+                dcc.Graph(id='graph-2'),
             ]),
 
        ], style={'width': '48%', 'float': 'right', 'display': 'inline-block'}
        ),
 
-   ])
+   ]),
+
+  html.Div([
+      dcc.Graph(id='graph-3'),
+  ])
+
 ])
+
 
 
 @app.callback(
@@ -150,14 +165,22 @@ def update_output_div_1(yr):
 
 @app.callback(
    Output(component_id='graph-2', component_property='figure'),
-   [Input(component_id='profession-2', component_property='value'),
-    Input(component_id='date-1', component_property='value')]
+   # [Input(component_id='profession-2', component_property='value'),
+    [Input(component_id='date-1', component_property='value'),
+    Input(component_id='graph-1', component_property='clickData')]
 )
-def update_output_div_2(profession,yr):
-  x, y, count1, count2 = profession_fine_license_ratio(license_data=license_data, fine_data=fine_data, 
-    profession=profession, profession_column_license='profession_id',
-    profession_column_fine='profession_id', column_name1='licence_year',
-    column_name2='disciplinary_year', year=yr)
+def update_output_div_2(yr,clickData):
+  click = clickData['points'][0]['x']
+  if click:
+    x, y, count1, count2 = profession_fine_license_ratio(license_data=license_data, fine_data=fine_data,
+      profession=click, profession_column_license='profession_id',
+      profession_column_fine='profession_id', column_name1='licence_year',
+      column_name2='disciplinary_year', year=yr)
+  else:
+    x, y, count1, count2 = profession_fine_license_ratio(license_data=license_data, fine_data=fine_data,
+      profession=profession, profession_column_license='profession_id',
+      profession_column_fine='profession_id', column_name1='licence_year',
+      column_name2='disciplinary_year', year=yr)    
 
   data = [
       go.Pie(
@@ -171,9 +194,52 @@ def update_output_div_2(profession,yr):
       'layout': go.Layout(
           # annotations = [{'text':profession, 'showarrow':False}],
           annotations = [{'text': 'Licenses Issued: ' + str(count1) + "<br>" + 'Fines Issued: ' + str(count2), 'showarrow':False}],
-          title='Licenses issued to Fines Recieved in '+ str(yr),
+          title=click + '<br>' + 'Licenses issued to Fines Recieved in '+ str(yr),
           hovermode='closest'
       )
+  }
+
+# @app.callback(
+#    Output(component_id='profession-2', component_property='value'),
+#    [Input(component_id='graph-1', component_property='clickData')]
+# )
+# def update_dropdown_selected(clickData):
+#   return clickData['points'][0]['x']
+  
+@app.callback(
+   Output(component_id='graph-3', component_property='figure'),
+    [Input(component_id='date-1', component_property='value'),
+    Input(component_id='graph-1', component_property='clickData')]
+)
+def update_output_div_3(yr,clickData):
+  click = clickData['points'][0]['x']
+  year_list = [yr-4,yr-3,yr-2,yr-1,yr]
+  year_list = [dt.strptime(str(yr),'%Y') for yr in year_list]
+  count_list = []
+  for year in year_list:
+    _, _, _, count = profession_fine_license_ratio(license_data=license_data, fine_data=fine_data,
+      profession=click, profession_column_license='profession_id',
+      profession_column_fine='profession_id', column_name1='licence_year',
+      column_name2='disciplinary_year', year=year.year)
+
+    count_list.append(count)
+  data = [
+        go.Scatter(
+          x=year_list,
+          y=count_list,
+          mode="markers+lines", 
+          name='bird_name')
+  ]
+
+  layout = go.Layout(
+              title='5 Year Disciplinary Action Trend for ' + click, 
+              xaxis={'title':'Year'}, 
+              yaxis={'title':'Fine Count'})
+
+
+  return {
+      'data': data,
+      'layout': layout
   }
 
 if __name__ == '__main__':
