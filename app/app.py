@@ -14,46 +14,13 @@ from dash.dependencies import Input, Output
 import dash_html_components as html
 import dash_core_components as dcc
 import plotly.graph_objs as go
-from ratio import fine_license_ratio, profession_fine_license_ratio
-
-# Read in pickled data
-
-license_data = pd.read_pickle('licenses')
-fine_data = pd.read_pickle('fines')
+from ratios import profession_fine_license_ratio
+from query import generate_professions_list, generate_dates_list, get_data
 
 
-# Generate sorted profession list for app dropdown
-A = license_data['profession_id'].unique()
-B = fine_data['profession_id'].unique()
-professions = sorted(list(set(A).intersection(set(B))))
-professions_options = []
-for profession in professions:
-   professions_options.append({'label': profession, 'value': profession})
-
-# Generate sorted year list for licenses
-license_date_options_list = sorted([year for year in license_data['licence_year'].unique() if not np.isnan(year)])
-date_options_licenses = []
-for date in license_date_options_list:
-   date_options_licenses.append({'label': date, 'value': date})
-
-# Generate sorted year list for fines
-fines_date_options_list = sorted([year for year in fine_data['disciplinary_year'].unique() if not np.isnan(year)])
-date_options_fines = []
-for date in fines_date_options_list:
-   date_options_fines.append({'label': date, 'value': date})
-
-# For Pie chart of Licenses to Fines ratio, we should use and intersection of the dates
-# This Prevents errors when querying the data
-C = license_date_options_list
-D = fines_date_options_list
-dates_intersect = sorted(list(set(C).intersection(set(D))))
-dates_intersect_list = []
-for date in dates_intersect:
-   dates_intersect_list.append({'label': date, 'value': date})
-
-# Generate random number to slice professions_option 
-# to use for default profession
-num = np.random.randint(0,len(professions_options))
+license_data, fine_data = get_data()
+professions_options, num = generate_professions_list(license_data, fine_data)
+dates = generate_dates_list(license_data, fine_data)
 
     
 app = dash.Dash()
@@ -61,8 +28,6 @@ app.css.append_css({'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'
 
 app.layout = html.Div([
    html.Div([
-
-
        html.H1(['Delaware Licensing and Disciplinary Actions'],style={'textAlign':'center'}),
 
    #left div
@@ -72,8 +37,8 @@ app.layout = html.Div([
                 html.Label('Select A Year'),
                 dcc.Dropdown(
                    id='date-1',
-                   options= date_options_fines,
-                   value= date_options_fines[-4]['value'],
+                   options= dates,
+                   value= dates[-4]['value'],
                ),
             ], style={
                     'borderBottom': 'thin lightgrey solid',
@@ -93,20 +58,6 @@ app.layout = html.Div([
    #right div
 
        html.Div([
-       #     html.Div([
-       #         html.Label('Select A Profession Type'),
-       #         dcc.Dropdown(
-       #             id='profession-2',
-       #             options= professions_options,
-       #             value=professions_options[num]['value'],
-       #             # placeholder='Nursing...'
-       #          )
-       #      ], style={
-       #              'borderBottom': 'thin lightgrey solid',
-       #              'backgroundColor': 'rgb(250, 250, 250)',
-       #              'padding': '10px 5px'
-       #      }),
-
             html.Div([
                 dcc.Graph(id='graph-2'),
             ]),
@@ -121,8 +72,6 @@ app.layout = html.Div([
   ])
 
 ])
-
-
 
 @app.callback(
    Output(component_id='graph-1', component_property='figure'),
@@ -162,25 +111,17 @@ def update_output_div_1(yr):
         )
     }
 
-
 @app.callback(
    Output(component_id='graph-2', component_property='figure'),
-   # [Input(component_id='profession-2', component_property='value'),
     [Input(component_id='date-1', component_property='value'),
     Input(component_id='graph-1', component_property='clickData')]
 )
 def update_output_div_2(yr,clickData):
   click = clickData['points'][0]['x']
-  if click:
-    x, y, count1, count2 = profession_fine_license_ratio(license_data=license_data, fine_data=fine_data,
-      profession=click, profession_column_license='profession_id',
-      profession_column_fine='profession_id', column_name1='licence_year',
-      column_name2='disciplinary_year', year=yr)
-  else:
-    x, y, count1, count2 = profession_fine_license_ratio(license_data=license_data, fine_data=fine_data,
-      profession=profession, profession_column_license='profession_id',
-      profession_column_fine='profession_id', column_name1='licence_year',
-      column_name2='disciplinary_year', year=yr)    
+  x, y, count1, count2 = profession_fine_license_ratio(license_data=license_data, fine_data=fine_data,
+    profession=click, profession_column_license='profession_id',
+    profession_column_fine='profession_id', column_name1='licence_year',
+    column_name2='disciplinary_year', year=yr)   
 
   data = [
       go.Pie(
@@ -192,19 +133,11 @@ def update_output_div_2(yr,clickData):
   return {
       'data': data,
       'layout': go.Layout(
-          # annotations = [{'text':profession, 'showarrow':False}],
           annotations = [{'text': 'Licenses Issued: ' + str(count1) + "<br>" + 'Fines Issued: ' + str(count2), 'showarrow':False}],
           title=click + '<br>' + 'Licenses issued to Fines Recieved in '+ str(yr),
           hovermode='closest'
       )
   }
-
-# @app.callback(
-#    Output(component_id='profession-2', component_property='value'),
-#    [Input(component_id='graph-1', component_property='clickData')]
-# )
-# def update_dropdown_selected(clickData):
-#   return clickData['points'][0]['x']
   
 @app.callback(
    Output(component_id='graph-3', component_property='figure'),
@@ -228,13 +161,16 @@ def update_output_div_3(yr,clickData):
           x=year_list,
           y=count_list,
           mode="markers+lines", 
-          name='bird_name')
+          name='bird_name',
+          line={'shape':'spline', 'smoothing':0.1, 'width':3},
+          marker={'size': 6, 'opacity': .7})
   ]
 
   layout = go.Layout(
-              title='5 Year Disciplinary Action Trend for ' + click, 
+              title='5 Year Disciplinary Action Trend for ' + click + ' Linceses <br>' +
+                    str(year_list[0].year) + ' to ' + str(year_list[-1].year), 
               xaxis={'title':'Year'}, 
-              yaxis={'title':'Fine Count'})
+              yaxis={'title':'Fine Count', 'range':[0,max(count_list) + 10]})
 
 
   return {
